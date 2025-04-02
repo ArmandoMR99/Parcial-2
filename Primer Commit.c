@@ -1,7 +1,7 @@
-namespace ArbolDePrueba
+namespace BehaviourTreeTests
 {
     [TestFixture]
-    public class ArbolDePrueba
+    public class BehaviourTreeTests
     {
         [Test]
         public void BehaviourTree_HasSingleRoot()
