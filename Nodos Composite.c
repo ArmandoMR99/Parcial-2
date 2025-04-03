@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using NUnit.Framework;
-
 namespace BehaviourTreeTests
 {
     public abstract class NodoBT
