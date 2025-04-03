@@ -2,99 +2,136 @@ using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 
-public abstract class NodoBT
+namespace BehaviourTreeTests
 {
-    public abstract bool Ejecutar();
-}
-
-// Root solo tiene un único child y no puede ser otro Root 
-public class NodoRaiz : NodoBT
-{
-    private NodoBT hijo;
-    public NodoRaiz(NodoBT hijo)
+    public abstract class NodoBT
     {
-        if (hijo is NodoRaiz)
-            throw new ArgumentException("Un NodoRaiz no puede tener otro NodoRaiz como hijo.");
-        this.hijo = hijo;
+        public abstract bool Ejecutar();
     }
-    public override bool Ejecutar() => hijo?.Ejecutar() ?? false;
-}
 
-// Un nodo Composite no puede ser instanciado directamente
-public abstract class NodoCompuesto : NodoBT
-{
-    protected List<NodoBT> hijos = new List<NodoBT>();
-    public void AgregarHijo(NodoBT hijo)
+    public class NodoRaiz : NodoBT
     {
-        if (hijo is NodoRaiz)
-            throw new ArgumentException("Un NodoCompuesto no puede tener un NodoRaiz como hijo.");
-        hijos.Add(hijo);
-    }
-}
+        private NodoBT hijo;
 
-public class NodoSelector : NodoCompuesto
-{
-    public override bool Ejecutar()
+        public NodoRaiz(NodoBT hijo)
+        {
+            if (hijo is NodoRaiz)
+                throw new ArgumentException("Un NodoRaiz no puede tener otro NodoRaiz como hijo.");
+
+            this.hijo = hijo;
+        }
+
+        public override bool Ejecutar() => hijo?.Ejecutar() ?? false;
+    }
+
+    public abstract class NodoCompuesto : NodoBT
     {
-        foreach (var hijo in hijos)
-            if (hijo.Ejecutar()) return true;
-        return false;
-    }
-}
+        protected List<NodoBT> hijos = new List<NodoBT>();
 
-public class NodoSecuencia : NodoCompuesto
-{
-    public override bool Ejecutar()
+        public void AgregarHijo(NodoBT hijo)
+        {
+            if (hijo is NodoRaiz)
+                throw new ArgumentException("Un NodoCompuesto no puede tener un NodoRaiz como hijo.");
+
+            hijos.Add(hijo);
+        }
+    }
+
+    public class NodoSelector : NodoCompuesto
     {
-        foreach (var hijo in hijos)
-            if (!hijo.Ejecutar()) return false;
-        return true;
+        public override bool Ejecutar()
+        {
+            foreach (var hijo in hijos)
+                if (hijo.Ejecutar()) return true;
+
+            return false;
+        }
     }
-}
 
-// Un nodo Task no puede ser instanciado directamente y no tiene hijos
-public abstract class NodoTarea : NodoBT { }
-
-public class NodoVerificarPar : NodoTarea
-{
-    private int numero;
-    public NodoVerificarPar(int num) => numero = num;
-    public override bool Ejecutar() => numero % 2 == 0;
-}
-
-// Un árbol de comportamiento solo tiene un NodoRaiz
-public class BehaviourTree
-{
-    public NodoRaiz Root { get; private set; }
-    public BehaviourTree(NodoRaiz root)
+    public class NodoSecuencia : NodoCompuesto
     {
-        Root = root ?? throw new ArgumentException("El árbol de comportamiento debe tener un NodoRaiz.");
+        public override bool Ejecutar()
+        {
+            foreach (var hijo in hijos)
+                if (!hijo.Ejecutar()) return false;
+
+            return true;
+        }
     }
-    public bool Ejecutar() => Root.Ejecutar();
+
+    public abstract class NodoTarea : NodoBT { }
+
+    public class NodoVerificarPar : NodoTarea
+    {
+        private int numero;
+
+        public NodoVerificarPar(int num) => numero = num;
+
+        public override bool Ejecutar() => numero % 2 == 0;
+    }
+
+    public class BehaviourTree
+    {
+        public NodoRaiz Root { get; private set; }
+
+        public BehaviourTree(NodoRaiz root)
+        {
+            Root = root ?? throw new ArgumentException("El árbol de comportamiento debe tener un NodoRaiz.");
+        }
+
+        public bool Ejecutar() => Root.Ejecutar();
+    }
+
+    [TestFixture]
+    public class BehaviourTreeTests
+    {
+        [Test]
+        public void Root_TieneUnUnicoHijo()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new NodoRaiz(new NodoRaiz(new NodoVerificarPar(2))));
+        }
+
+        [Test]
+        public void NodoCompuesto_NoPuedeTenerRootComoHijo()
+        {
+            var selector = new NodoSelector();
+            Assert.Throws<ArgumentException>(() => selector.AgregarHijo(new NodoRaiz(new NodoVerificarPar(2))));
+        }
+
+        [Test]
+        public void RootVacio_RetornaFalse()
+        {
+            var root = new NodoRaiz(null);
+            var tree = new BehaviourTree(root);
+            Assert.IsFalse(tree.Ejecutar());
+        }
+
+        [Test]
+        public void SequenceConFalse_RetornaFalse()
+        {
+            var secuencia = new NodoSecuencia();
+            secuencia.AgregarHijo(new NodoVerificarPar(3));
+            Assert.IsFalse(secuencia.Ejecutar());
+        }
+
+        [Test]
+        public void SelectorConTrue_RetornaTrue()
+        {
+            var selector = new NodoSelector();
+            selector.AgregarHijo(new NodoVerificarPar(2));
+            Assert.IsTrue(selector.Ejecutar());
+        }
+
+        [Test]
+        public void NodoCompuestoDebeTenerAlMenosUnHijo()
+        {
+            var selector = new NodoSelector();
+            Assert.IsFalse(selector.Ejecutar());
+        }
+    }
 }
 
-// Pruebas mínimas para garantizar los requerimientos
-[TestFixture]
-public class BehaviourTreeTests
-{
-    [Test] public void Root_TieneUnUnicoHijo() => Assert.Throws<ArgumentException>(() => new NodoRaiz(new NodoRaiz(new NodoVerificarPar(2))));
-    [Test] public void NodoCompuesto_NoPuedeTenerRootComoHijo() => Assert.Throws<ArgumentException>(() => new NodoSelector().AgregarHijo(new NodoRaiz(new NodoVerificarPar(2))));
-    [Test] public void RootVacio_RetornaFalse() => Assert.IsFalse(new BehaviourTree(new NodoRaiz(null)).Ejecutar());
-    [Test]
-    public void SequenceConFalse_RetornaFalse()
-    {
-        var seq = new NodoSecuencia();
-        seq.AgregarHijo(new NodoVerificarPar(3)); 
-        Assert.IsFalse(seq.Ejecutar());
-    }
-    [Test]
-    public void SelectorConTrue_RetornaTrue()
-    {
-        var sel = new NodoSelector();
-        sel.AgregarHijo(new NodoVerificarPar(2)); 
-        Assert.IsTrue(sel.Ejecutar());
-    }
-}
 
 
 // Posdata no he dormido por este parcial, :) gracias profe
